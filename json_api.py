@@ -1,6 +1,8 @@
 from playwright.sync_api import sync_playwright
 import getpass
 import json
+import pandas as pd
+import numpy as np
 import requests
 import sys, os, time
 """
@@ -10,6 +12,21 @@ Criado em: Fevereiro, 2026
 Modificado em: Fevereiro, 2026
 
 Script direcionado para a aquisição de dados dos processos fiscalizatórios disponíveis do site cfc.org.br: requer acesso ao usuário do fiscal.
+
+Notas:
+Path: "www3.cfc.org.br/spwALTeste/pro-teste/Scripts/app/controllers/pro.detalhegerencial.controller.js?v=1502202601" (contains JSON data mapping)
+
+vmc.ListaEtapas = [
+    { Etapa: "Auto de Infração", codigo: 9 },
+    { Etapa: "Ciência", codigo: 3 },
+    { Etapa: "Ciência Julgamento", codigo: 12 },
+    { Etapa: "Deliberação", codigo: 13 },
+    { Etapa: "Decisão Federal", codigo: 14 },
+    { Etapa: "Execução", codigo: 15 },
+];
+
+Entre outras coisas, a possibilidade de geração de relatórios permite que haja facilidade em comparar dados entre duas planilhas distintas com valores
+potencialmente equivalentes e portanto de confronto de dados, o que não parece de todo prático a partir de uma página da web.
 """
 
 USERNAME = input('Username: ')
@@ -44,8 +61,23 @@ def get_context_data(username, password, headless=True):
         login_button = page.locator('[ng-click="vm.login(vm.usuario)"]')
 
         # Espera uma resposta positiva do site após login para validar as credenciais do usuário antes de extrair os cookies.
-        with page.expect_response(lambda response: "Home/Index" in response.url) as response_info:
-            login_button.press("Enter")
+        print("try triggered")
+        start = time.perf_counter()
+        try:
+            with page.expect_response(lambda response: "Home/Index" in response.url) as response_info:
+                login_button.press("Enter")
+            print("Login Successful!")
+            end = time.perf_counter()
+        
+        except KeyboardInterrupt:
+            print("Operation interrupted")
+            sys.exit(0)
+
+        except Exception as e:
+            print(e)
+            sys.exit(0)
+
+        print(end-start)
 
         context_data["Headers"] = response.headers
         context_data["Cookies"] = context.cookies()
@@ -70,7 +102,7 @@ def get_processos(context_data):
 
     # Inserção dos cookies.
     for cookie in context_data["Cookies"]:
-        if cookie['expires'] == -1:
+        if cookie['expires'] == -1:  # Curiosidade: 4h é a duração de validade dos cookies.
             print("Cookie expired")
 
         session.cookies.set(
@@ -123,7 +155,40 @@ def get_processos(context_data):
 
 if __name__=="__main__":
     context_data = get_context_data(USERNAME, PASSWORD)
-    processes = get_processos(context_data) 
-    for process in processes:
-        print(process["NumeroProcesso"], process["NumRegistro"], process["Nome"], process["FaseAtual"], process["EtapaAtual"], process["SituacaoAtual"])
+    processos = get_processos(context_data) 
+
+    mapping = None
+    json_filename = "mapping.json"
+    if os.path.exists(json_filename):
+        with open(json_filename, 'r') as file:
+            try:
+                mapping = json.load(file)
+            except Exception as error:
+                print(error)
+                sys.exit(0)  # TEMP
+    else:
+        ...
+
+    data_buffer = []
+    for processo in processos:
+        num_processo = processo["NumeroProcesso"]
+        nome = processo["Nome"]
+        num_registro = processo["NumRegistro"]
+        fase_atual = str(processo["FaseAtual"])
+
+        fase_atual_str = mapping["FaseAtual"][fase_atual]
+        
+        row_data = {
+            "NumeroProcesso": num_processo,
+            "Nome": nome,
+            "NumRegistro": num_registro,
+            "FaseAtual": fase_atual_str
+        }
+
+        data_buffer.append(row_data)
+
+    processo_df = pd.DataFrame(data_buffer)
+    print(processo_df.head())
+
+    processo_df.to_excel("relatorio.xlsx", index=False)
 
