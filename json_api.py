@@ -4,9 +4,12 @@ import json
 import requests
 import sys, os, time
 """
-Copyright 2026 CRC/AL.
+Copyright 2026 CRC/AL
+Autor: Demerson Oliveira, estagiário
+Criado em: Fevereiro, 2026
+Modificado em: Fevereiro, 2026
 
-Direcionado para a aquisição de dados dos processos fiscalizatórios disponíveis do site cfc.org.br: requer acesso ao usuário do fiscal.
+Script direcionado para a aquisição de dados dos processos fiscalizatórios disponíveis do site cfc.org.br: requer acesso ao usuário do fiscal.
 """
 
 USERNAME = input('Username: ')
